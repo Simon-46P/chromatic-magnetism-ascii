@@ -33,8 +33,22 @@ export function render(
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
   ctx.font = `${fontSize}px 'Courier New', Courier, monospace`
   ctx.textBaseline = 'alphabetic'
-  ctx.globalCompositeOperation = 'screen'
   ctx.globalAlpha = brightness
+
+  // Fast path: no chromatic split and no per-glyph colorize — single white pass
+  if (shift < 0.5 && colorize < 0.01) {
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.fillStyle = '#ffffff'
+    for (const g of glyphs) {
+      if (g.char === ' ') continue
+      ctx.fillText(g.char, g.x, g.y)
+    }
+    ctx.globalAlpha = 1
+    return
+  }
+
+  // 3-pass chromatic path
+  ctx.globalCompositeOperation = 'screen'
 
   // 0 = red pass, 1 = green pass, 2 = blue pass
   const xShifts = [-shift, 0, shift]
@@ -51,9 +65,9 @@ export function render(
       if (g.char === ' ') continue
 
       // Blend from flat channel color toward image channel color
-      const r = Math.round(lerp(baseR[pass], pass === 0 ? g.r : 0, colorize))
+      const r  = Math.round(lerp(baseR[pass], pass === 0 ? g.r : 0, colorize))
       const gr = Math.round(lerp(baseG[pass], pass === 1 ? g.g : 0, colorize))
-      const b = Math.round(lerp(baseB[pass], pass === 2 ? g.b : 0, colorize))
+      const b  = Math.round(lerp(baseB[pass], pass === 2 ? g.b : 0, colorize))
 
       const style = `rgb(${r},${gr},${b})`
       if (style !== lastStyle) {

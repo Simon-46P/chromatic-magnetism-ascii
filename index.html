@@ -75,6 +75,24 @@
       }
       #file-input { display: none; }
 
+      /* ── Perf stats ── */
+      #stats {
+        position: fixed;
+        top: 14px;
+        left: 16px;
+        display: flex;
+        gap: 14px;
+        font-size: 13px;
+        letter-spacing: 0.06em;
+        pointer-events: none;
+        z-index: 100;
+        font-family: 'Courier New', Courier, monospace;
+      }
+      #stat-fps    { color: #3f3; font-weight: bold; }
+      #stat-frame  { color: #fff; }
+      #stat-budget { color: #fff; }
+      #stat-glyphs { color: #fff; }
+
       /* ── Controls toggle button ── */
       #controls-toggle {
         position: fixed;
@@ -82,7 +100,7 @@
         right: 16px;
         background: var(--btn-bg);
         border: 1px solid var(--border);
-        color: var(--text-dim);
+        color: #fff;
         font-family: inherit;
         font-size: 11px;
         letter-spacing: 0.1em;
@@ -234,6 +252,14 @@
       <p>drop, paste (Ctrl+V), or</p>
       <button id="upload-btn">Upload Image</button>
       <input type="file" id="file-input" accept="image/*" />
+    </div>
+
+    <!-- Perf stats -->
+    <div id="stats">
+      <span id="stat-fps">-- fps</span>
+      <span id="stat-frame">-- ms</span>
+      <span id="stat-budget">--%</span>
+      <span id="stat-glyphs">-- gl</span>
     </div>
 
     <!-- Controls toggle -->
