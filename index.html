@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chromatic ASCII</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --bg: #0a0a0a;
+        --panel-bg: rgba(10, 10, 10, 0.92);
+        --border: rgba(255, 255, 255, 0.08);
+        --text: #c8c8c8;
+        --text-dim: #555;
+        --accent: #4af;
+        --btn-bg: rgba(255,255,255,0.05);
+        --btn-hover: rgba(255,255,255,0.1);
+      }
+
+      html, body {
+        width: 100%; height: 100%;
+        background: var(--bg);
+        overflow: hidden;
+        font-family: 'Courier New', Courier, monospace;
+        color: var(--text);
+      }
+
+      /* ── Canvas ── */
+      #canvas {
+        display: block;
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      /* ── Upload overlay (shown when no image loaded) ── */
+      #upload-overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        pointer-events: none;
+        transition: opacity 0.4s;
+      }
+      #upload-overlay.hidden { opacity: 0; pointer-events: none; }
+
+      #upload-overlay p {
+        font-size: 13px;
+        color: var(--text-dim);
+        letter-spacing: 0.08em;
+      }
+
+      #upload-btn {
+        pointer-events: all;
+        background: var(--btn-bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: inherit;
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        padding: 10px 24px;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s;
+      }
+      #upload-btn:hover {
+        background: var(--btn-hover);
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      #file-input { display: none; }
+
+      /* ── Controls toggle button ── */
+      #controls-toggle {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        background: var(--btn-bg);
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+        font-family: inherit;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        padding: 6px 12px;
+        cursor: pointer;
+        z-index: 100;
+        transition: color 0.2s, border-color 0.2s;
+      }
+      #controls-toggle:hover, #controls-toggle.active {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      /* ── Control panel ── */
+      #control-panel {
+        position: fixed;
+        top: 48px;
+        right: 16px;
+        width: 280px;
+        max-height: calc(100vh - 64px);
+        overflow-y: auto;
+        background: var(--panel-bg);
+        border: 1px solid var(--border);
+        backdrop-filter: blur(12px);
+        padding: 20px;
+        z-index: 99;
+        display: none;
+        flex-direction: column;
+        gap: 16px;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+      }
+      #control-panel.open { display: flex; }
+
+      .panel-title {
+        font-size: 10px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 10px;
+      }
+
+      .control-group { display: flex; flex-direction: column; gap: 6px; }
+
+      .control-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .control-label {
+        font-size: 11px;
+        color: var(--text);
+        letter-spacing: 0.06em;
+        flex-shrink: 0;
+        min-width: 110px;
+      }
+
+      .control-value {
+        font-size: 11px;
+        color: var(--accent);
+        min-width: 32px;
+        text-align: right;
+        flex-shrink: 0;
+      }
+
+      input[type="range"] {
+        -webkit-appearance: none;
+        flex: 1;
+        height: 2px;
+        background: var(--border);
+        outline: none;
+        cursor: pointer;
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 12px;
+        height: 12px;
+        background: var(--accent);
+        border-radius: 50%;
+      }
+      input[type="range"]::-moz-range-thumb {
+        width: 12px;
+        height: 12px;
+        background: var(--accent);
+        border: none;
+        border-radius: 50%;
+      }
+
+      .control-section-label {
+        font-size: 10px;
+        color: var(--text-dim);
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        margin-top: 4px;
+      }
+
+      /* ── Char ramp input ── */
+      #ramp-input {
+        width: 100%;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: inherit;
+        font-size: 11px;
+        padding: 6px 8px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      #ramp-input:focus { border-color: var(--accent); }
+
+      /* ── Panel action buttons ── */
+      .panel-actions {
+        display: flex;
+        gap: 8px;
+        padding-top: 4px;
+        border-top: 1px solid var(--border);
+      }
+
+      .panel-btn {
+        flex: 1;
+        background: var(--btn-bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: inherit;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 8px;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s, color 0.2s;
+      }
+      .panel-btn:hover { background: var(--btn-hover); border-color: var(--text); }
+      .panel-btn.save-btn:hover { border-color: var(--accent); color: var(--accent); }
+      .panel-btn.reset-btn:hover { border-color: #f64; color: #f64; }
+      .panel-btn.flash { border-color: var(--accent) !important; color: var(--accent) !important; }
+      .panel-btn.mode-btn { flex: none; padding: 5px 12px; font-size: 10px; }
+      .panel-btn.mode-btn.active { border-color: var(--accent); color: var(--accent); }
+    </style>
+  </head>
+  <body>
+
+    <canvas id="canvas"></canvas>
+
+    <!-- Upload overlay -->
+    <div id="upload-overlay">
+      <p>drop, paste (Ctrl+V), or</p>
+      <button id="upload-btn">Upload Image</button>
+      <input type="file" id="file-input" accept="image/*" />
+    </div>
+
+    <!-- Controls toggle -->
+    <button id="controls-toggle" title="Toggle controls (C)">[C] Controls</button>
+
+    <!-- Control panel -->
+    <div id="control-panel">
+      <div class="panel-title">Parameters</div>
+
+      <div class="control-group">
+        <span class="control-section-label">Displacement</span>
+
+        <div class="control-row">
+          <span class="control-label">Radius</span>
+          <input type="range" id="ctrl-radius" min="20" max="300" step="1" />
+          <span class="control-value" id="val-radius"></span>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">Strength</span>
+          <input type="range" id="ctrl-strength" min="0" max="20" step="0.1" />
+          <span class="control-value" id="val-strength"></span>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">Spring</span>
+          <input type="range" id="ctrl-spring" min="0.01" max="0.3" step="0.005" />
+          <span class="control-value" id="val-spring"></span>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">Damping</span>
+          <input type="range" id="ctrl-damping" min="0.5" max="0.99" step="0.01" />
+          <span class="control-value" id="val-damping"></span>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">Force Mode</span>
+          <button class="panel-btn mode-btn" id="btn-attract">Repel</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <span class="control-section-label">Chromatic</span>
+
+        <div class="control-row">
+          <span class="control-label">RGB Offset</span>
+          <input type="range" id="ctrl-chromaticOffset" min="0" max="12" step="0.5" />
+          <span class="control-value" id="val-chromaticOffset"></span>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">Dynamic Scale</span>
+          <input type="range" id="ctrl-chromaticDynamic" min="0" max="5" step="0.1" />
+          <span class="control-value" id="val-chromaticDynamic"></span>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <span class="control-section-label">Rendering</span>
+
+        <div class="control-row">
+          <span class="control-label">Width (chars)</span>
+          <input type="range" id="ctrl-cols" min="20" max="400" step="5" />
+          <span class="control-value" id="val-cols"></span>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">Font Size</span>
+          <input type="range" id="ctrl-fontSize" min="4" max="20" step="1" />
+          <span class="control-value" id="val-fontSize"></span>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">Brightness</span>
+          <input type="range" id="ctrl-brightness" min="0.5" max="3" step="0.05" />
+          <span class="control-value" id="val-brightness"></span>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">Colorize</span>
+          <input type="range" id="ctrl-colorize" min="0" max="1" step="0.01" />
+          <span class="control-value" id="val-colorize"></span>
+        </div>
+
+        <div class="control-row">
+          <span class="control-label">Gamma</span>
+          <input type="range" id="ctrl-gamma" min="0.2" max="2" step="0.05" />
+          <span class="control-value" id="val-gamma"></span>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <span class="control-section-label">Char Ramp <span style="color:#333">(dense → sparse)</span></span>
+        <input type="text" id="ramp-input" spellcheck="false" />
+      </div>
+
+      <div class="panel-actions">
+        <button class="panel-btn save-btn" id="btn-save">Save</button>
+        <button class="panel-btn reset-btn" id="btn-reset">Reset</button>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
